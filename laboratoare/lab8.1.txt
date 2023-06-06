@@ -1,0 +1,39 @@
+Construiti un view prin intermediul caruia sa fie afisat catalogul pentru 
+materia Logica la grupa A1 din anul 2. 
+
+Adica pentru toti studentii din anul 2, grupa A1 vor fi afisate numele, prenumele si valoarea notei la disciplina Logica.
+
+Apoi, ADAUGATI IN VIEW un student nou (de exemplu Popescu Ion) si cu o nota 
+la materia Logica. 
+
+Faceti intai verificarea daca exista studentul in BD si aruncati o exceptie. De asemenea singura informatie pe care voi o stiti despre curs este denumirea Logica.
+
+SELECT * FROM cursuri;
+
+CREATE VIEW catalog_logica_a1 AS
+SELECT s.nume, s.prenume, n.valoare
+FROM studenti s
+JOIN note n ON s.id = n.id_student
+JOIN cursuri c ON c.id = n.id_curs
+WHERE c.titlu_curs = 'Logicã' AND s.an=2 AND s.grupa='A1';
+
+SELECT * FROM catalog_logica_a1;
+
+
+CREATE OR REPLACE TRIGGER insert_student
+  INSTEAD OF INSERT ON catalog_logica_a1
+  DECLARE 
+    student_exists INTEGER;
+    v_id studenti.id%TYPE;
+    v_id_nota note.id%TYPE;
+BEGIN
+ SELECT COUNT(*) INTO student_exists FROM studenti WHERE nume = :NEW.nume AND prenume = :NEW.prenume;
+    IF student_exists > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Studentul exista in baza de date.');
+    ELSE
+  select max(id) + 1 into v_id from studenti;
+  select max(id) + 1 into v_id_nota from note;
+  INSERT INTO studenti VALUES(v_id, 'ABCEDF', :NEW.nume, :NEW.prenume, 2, 'A1', NULL, NULL, NULL, SYSDATE, SYSDATE);
+  INSERT INTO note VALUES(v_id_nota, v_id, 1, :NEW.valoare, SYSDATE, SYSDATE, SYSDATE);
+END IF;
+END;

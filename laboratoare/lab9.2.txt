@@ -1,0 +1,88 @@
+Creati un script PLSQL care sa exporte pe calculatorul vostru informatii cat mai complete despre studenti
+
+intr-un fisier (la alegerea voastra tipul fisierului) care sa contina numele si prenumele studentilor, an, grupa,titlul cursului la care are nota, nota si data notare. 
+
+In caz ca e restantier(are o nota de patru) sa fie afisata in loc de nota string-ul "RESTANTIER".
+
+Pentru situatiile in care studentul nu are bursa sau nu a fost notat la nici un curs (deci nu are asociat nici nota nici curs nici data notare), sa se afiseze mesaje conrespunzatoare precum ca nu are bursa sau nu are note. 
+
+Ca sa testati cazul cu studenti fara note puteti sa introduce un nou student in tabela studenti fara note.
+
+Apoi creati un script care citeste din fisier informatiile exportate despre studenti si afisati-le pentru primii 50 de studenti. 
+
+INSERT INTO STUDENTI (ID, NR_MATRICOL, NUME, PRENUME, AN, GRUPA, DATA_NASTERE)
+  VALUES (1033, 'AA02', 'Caldare', 'Elena', 2, 'A6', TO_DATE('25-SEP-1974', 'DD-MON-YYYY')); 
+
+SET SERVEROUTPUT ON;
+SET SERVEROUTPUT ON SIZE UNLIMITED;
+
+DECLARE
+  v_fisier UTL_FILE.FILE_TYPE;
+  v_curs VARCHAR2(100);
+  v_bursa VARCHAR2(100);
+  v_student VARCHAR2(100);
+  v_valoare  VARCHAR2(100);
+  cursor v_data is (
+    SELECT s.nume, s.prenume, s.bursa, c.titlu_curs, n.valoare, n.data_notare
+    FROM studenti s
+    LEFT JOIN note n ON s.id=n.id_student
+    LEFT JOIN cursuri c ON c.id=n.id_curs
+  );
+BEGIN
+  v_fisier := UTL_FILE.FOPEN('MYDIR', 'students1.txt', 'W');
+
+  FOR record IN v_data LOOP
+    IF record.bursa IS NOT NULL THEN
+      v_bursa :=  TO_CHAR(record.bursa);
+    ELSE
+      v_bursa := 'nu are bursa'; 
+    END IF;
+
+    IF record.titlu_curs IS NOT NULL THEN
+      v_curs := record.titlu_curs;
+    ELSE
+      v_curs := 'Nu are note';
+    END IF;
+
+    IF record.valoare = 4 THEN
+      v_valoare := 'Restantier';
+    ELSE
+      v_valoare := TO_CHAR(record.valoare);
+    END IF;
+
+    v_student := record.nume || ' ' || record.prenume;
+
+    --DBMS_OUTPUT.PUT_LINE(v_student || ' ' || v_bursa || ' ' || v_curs || ' ' || v_valoare || ' ' || record.data_notare); 
+    UTL_FILE.PUT_LINE(v_fisier, v_student || ' ' || v_bursa || ' ' || v_curs || ' ' || v_valoare || ' ' || record.data_notare);
+  END LOOP;
+
+  UTL_FILE.FCLOSE(v_fisier);
+END;
+/
+
+
+SET SERVEROUTPUT ON;
+DECLARE
+  v_fisier UTL_FILE.FILE_TYPE;
+  v_sir VARCHAR2(128);
+  v_counter NUMBER := 0;
+BEGIN
+  v_fisier := UTL_FILE.FOPEN('MYDIR', 'students1.txt', 'R');
+  LOOP
+    UTL_FILE.GET_LINE(v_fisier, v_sir);
+    v_counter := v_counter + 1;
+    
+    IF v_counter <= 50 THEN
+      DBMS_OUTPUT.PUT_LINE(v_sir);
+    ELSE
+      EXIT;
+    END IF;
+  END LOOP;
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    NULL;
+
+  UTL_FILE.FCLOSE(v_fisier);
+END;
+/

@@ -1,0 +1,174 @@
+Intr-o functie se dau ca parametri o fraza select (text simplu) si denumirea unei tabele (denumirea tabelei din fraza select si cea data ca parametru 2 coincid). Sa se verifice ca pentru tabela data ca parametru coloanele din fraza select primita tot ca parametru sunt valide, adica daca exista o coloana care nu face parte din acea tabela. Daca nu, se va returna un mesaj corespunzator. Daca totul este valid atunci returnati si alte informatii despre tabela precum: 
+- toate coloanele tabelei (in caz ca testati pentru un numar mai mic de coloane). De exemplu daca testati 'Select nume, prenume, varsta from studenti' iar parametrul al doilea este 'Studenti' fraza select este invalida pentru ca contine coloana varsta. 
+- tipul de date al coloanelor, 
+- daca exista constrangeri la nivel de coloane
+- daca exista nested table in tabela
+- numarul de inregistari ale tabelei
+- indecsi la nivel de tabela si pe ce coloane
+Apelati functia pentru diferite situatii. 
+ATENTIE!!! - daca nu functioneaza codul si aveti erori se acorda doar 0.25 pct.
+
+-- Drop the result_table if it exists
+BEGIN
+  EXECUTE IMMEDIATE 'DROP TABLE result_table';
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL; -- Ignore the exception if the table does not exist
+END;
+
+-- Create the result_table
+CREATE TABLE result_table (
+  result CLOB
+);
+
+-- Create or replace the clob_table_type
+CREATE OR REPLACE TYPE clob_table_type AS TABLE OF CLOB;
+/
+
+
+-- Create or replace the verifica_select function
+CREATE OR REPLACE FUNCTION verifica_select(fraza_select VARCHAR2, denumire_tabela VARCHAR2) RETURN clob_table_type AS
+  v_count NUMBER;
+  v_column_name VARCHAR2(100);
+  v_data_type VARCHAR2(100);
+  v_table_name VARCHAR2(200) := denumire_tabela;
+  v_constraint_exists VARCHAR2(100);
+  v_nested_table_exists VARCHAR2(100);
+  v_num_rows NUMBER;
+  v_indexes VARCHAR2(4000);
+  v_column_details CLOB; -- New variable to store column details
+  v_all_columns_exist BOOLEAN := TRUE; -- Flag to track if all columns exist
+  v_result_table clob_table_type := clob_table_type(); -- Initialize the collection
+  v_temp_clob CLOB; -- Temporary CLOB variable for storing concatenated strings
+BEGIN
+  SELECT COUNT(*) INTO v_count
+  FROM all_tables
+  WHERE table_name = denumire_tabela;
+
+  IF v_count = 0 THEN
+    v_result_table.EXTEND;
+    v_result_table(v_result_table.LAST) := 'Tabela ' || denumire_tabela || ' nu exista in baza de date.'|| CHR(10);
+    RETURN v_result_table;
+  END IF;
+
+  FOR col IN (
+    SELECT regexp_substr(fraza_select, '\[([^]]+)\]', 1, level, NULL, 1) AS column_name
+    FROM dual
+    CONNECT BY regexp_substr(fraza_select, '\[([^]]+)\]', 1, level, NULL, 1) IS NOT NULL
+  ) LOOP
+    v_column_name := col.column_name;
+
+    BEGIN
+      SELECT COUNT(*)
+      INTO v_count
+      FROM all_tab_columns
+      WHERE table_name = v_table_name
+        AND column_name = v_column_name;
+
+      IF v_count > 0 THEN
+        v_result_table.EXTEND;
+        v_result_table(v_result_table.LAST) := 'Coloana ' || v_column_name || ' exista in tabela ' || v_table_name || CHR(10);
+      ELSE
+        v_result_table.EXTEND;
+        v_result_table(v_result_table.LAST) := 'Coloana ' || v_column_name || ' nu exista in tabela ' || v_table_name || CHR(10);
+        v_all_columns_exist := FALSE; -- Set the flag to false if any column does not exist
+      END IF;
+    EXCEPTION
+      WHEN OTHERS THEN
+        v_result_table.EXTEND;
+        v_result_table(v_result_table.LAST) := 'Eroare la verificarea coloanei ' || v_column_name || ': ' || SQLERRM;
+        v_all_columns_exist := FALSE; -- Set the flag to false if an error occurs
+    END;
+  END LOOP;
+
+  -- If all columns exist, retrieve column details and other information
+  IF v_all_columns_exist THEN
+    EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM ' || denumire_tabela INTO v_num_rows;
+    v_result_table.EXTEND;
+    v_result_table(v_result_table.LAST) := 'Fraza SELECT este valida pentru tabela ' || denumire_tabela || '. Numarul de inregistrari: ' || v_num_rows || CHR(10);
+
+    -- Retrieve column details
+    v_column_details := 'Detalii coloane:' || CHR(10);
+    FOR col_details IN (
+      SELECT column_name, data_type
+      FROM all_tab_columns
+      WHERE table_name = v_table_name
+    ) LOOP
+      v_column_details := v_column_details || 'Coloana: ' || col_details.column_name || ', Tip de date: ' || col_details.data_type || CHR(10);
+    END LOOP;
+
+    v_result_table.EXTEND;
+    v_result_table(v_result_table.LAST) := v_column_details;
+
+    SELECT COUNT(*)
+    INTO v_count
+    FROM all_cons_columns acc
+    JOIN all_constraints ac ON acc.owner = ac.owner AND acc.constraint_name = ac.constraint_name
+    WHERE acc.table_name = denumire_tabela;
+    IF v_count > 0 THEN
+      v_constraint_exists := 'DA';
+    ELSE
+      v_constraint_exists := 'NU';
+    END IF;
+    v_result_table.EXTEND;
+    v_result_table(v_result_table.LAST) := 'Există constrângeri la nivel de coloane: ' || v_constraint_exists || CHR(10);
+
+    SELECT COUNT(*)
+    INTO v_count
+    FROM all_nested_tables
+    WHERE table_name = denumire_tabela;
+    IF v_count > 0 THEN
+      v_nested_table_exists := 'DA';
+    ELSE
+      v_nested_table_exists := 'NU';
+    END IF;
+    v_result_table.EXTEND;
+    v_result_table(v_result_table.LAST) := 'Există tabele nested în tabela: ' || v_nested_table_exists || CHR(10);
+
+    FOR idx IN (
+      SELECT index_name, column_name
+      FROM all_ind_columns
+      WHERE table_name = denumire_tabela
+    ) LOOP
+      v_result_table.EXTEND;
+      v_result_table(v_result_table.LAST) := 'Indexul ' || idx.index_name || ' pe coloana ' || idx.column_name || CHR(10);
+    END LOOP;
+  ELSE
+    v_result_table.EXTEND;
+    v_result_table(v_result_table.LAST) := 'Nu toate coloanele din SELECT exista in tabela ' || denumire_tabela;
+  END IF;
+
+  RETURN v_result_table;
+EXCEPTION
+  WHEN OTHERS THEN
+    v_result_table.EXTEND;
+    v_result_table(v_result_table.LAST) := 'Eroare: ' || SQLERRM;
+    RETURN v_result_table;
+END;
+/
+
+
+-- Anonymous block to execute the function and print the results
+DECLARE
+  v_result_table clob_table_type;
+  v_result_clob CLOB;
+BEGIN
+  -- Call the function and store the results in the collection
+  v_result_table := verifica_select('Select [NUME], [PRENUME], [AN] from studenti', 'STUDENTI');
+
+  -- Insert the results into the result_table
+  FOR i IN 1..v_result_table.COUNT LOOP
+    INSERT INTO result_table (result) VALUES (v_result_table(i));
+  END LOOP;
+
+  COMMIT;
+
+  -- Retrieve the results from the result_table and print them
+  FOR rec IN (SELECT result FROM result_table) LOOP
+    v_result_clob := v_result_clob || rec.result;
+  END LOOP;
+
+  DBMS_OUTPUT.PUT_LINE(v_result_clob);
+END;
+/
+ 

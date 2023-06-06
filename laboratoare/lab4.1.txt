@@ -1,0 +1,82 @@
+Sa se creeze un pachet numit manager_bursa care sa contina:
+a) O procedura care modifica bursa cu 10% pentru fiecare student care are bursa,
+pana cand cea mai mare bursa devine mai mare de 2000 lei, moment in care nu se mai face update
+la nicio bursa. Deci fiecare bursa e marita cu 10% pana cand cea mai mare bursa devine >2000.
+b) O functie care primeste ca parametru id-ul unui student si care ne spune daca un student
+se aflat in top 10 al celor mai mari burse. Las la latitudinea voastra sa alegeti ce sa returneze acea functie.
+c) O procedura de afisare a informatiilor despre un anumit student: numele si prenumele si 
+daca este este in top zece burse sau daca nu este in top 10.
+
+Apelati dintr-un bloc anonim, pe rand, procedura de modificare bursa si afisare informatii student.
+
+PS: testati ceea ce obtineti cu ceea ce aveti in baza de date, daca studentul vostru chiar se afla in top 10 conform burselor desc. 
+
+
+
+CREATE OR REPLACE PACKAGE manager_bursa IS
+  PROCEDURE modifica_bursa; 
+  FUNCTION is_top10(v_id studenti.id%type) RETURN BOOLEAN;
+  PROCEDURE info(v_id studenti.id%type);  
+END manager_bursa;
+/
+
+
+
+CREATE OR REPLACE PACKAGE BODY manager_bursa IS
+
+  PROCEDURE modifica_bursa AS
+  CURSOR lista_studenti_bursieri IS SELECT nr_matricol FROM studenti WHERE bursa IS NOT NULL ORDER BY bursa DESC;
+
+    v_max_bursa NUMBER;
+  BEGIN
+    SELECT MAX(bursa) INTO v_max_bursa FROM studenti;
+    WHILE v_max_bursa <= 2000 LOOP
+      FOR rec IN lista_studenti_bursieri LOOP
+        UPDATE studenti SET bursa = bursa * 1.1 WHERE nr_matricol = rec.nr_matricol;
+      END LOOP;
+      SELECT MAX(bursa) INTO v_max_bursa FROM studenti;
+    END LOOP;
+  END;
+
+
+  FUNCTION is_top10(v_id studenti.id%type) RETURN BOOLEAN AS
+  CURSOR top10 
+  IS SELECT id FROM studenti WHERE rownum <= 10 ORDER BY bursa DESC ; 
+
+    v_result BOOLEAN := false;
+  BEGIN
+    FOR rec IN top10 LOOP
+      IF v_id = rec.id THEN v_result := true; END IF;
+    END LOOP;
+    RETURN v_result;
+  END;
+
+
+  PROCEDURE info(v_id studenti.id%type) AS
+  CURSOR information IS SELECT nume, prenume FROM studenti WHERE studenti.id = v_id;
+
+    v_nume studenti.nume%type;
+    v_prenume studenti.prenume%type;
+  BEGIN
+    OPEN information;
+    FETCH information INTO v_nume, v_prenume;
+    DBMS_OUTPUT.PUT_LINE('Nume: ' || v_nume || ' Prenume: ' || v_prenume);
+    DBMS_OUTPUT.PUT_LINE('Student cu id: ' || v_id );
+    IF (is_top10(v_id)) THEN
+      DBMS_OUTPUT.PUT_LINE('este bursier top 10');
+    ELSE
+      DBMS_OUTPUT.PUT_LINE('nu este bursier top 10');
+    END IF;
+    CLOSE information;
+  END;
+
+END manager_bursa;
+
+
+
+DECLARE
+  v_id studenti.id%type := 22;
+BEGIN
+  manager_bursa.modifica_bursa();
+  manager_bursa.info(v_id);
+END;

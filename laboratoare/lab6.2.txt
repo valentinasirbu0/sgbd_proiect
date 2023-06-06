@@ -1,0 +1,70 @@
+S-a decis la nivel de facultate ca toti studentii care nu au restante sa fie inscrisi pentru Erasmus. 
+Pentru aceasta adaugati o noua coloana la tabela studenti sau faceti o copie a tabelei studenti,
+denumita ERASMUS in care se va scrie, in functie de caz, 'ERASMUS' daca indeplineste conditia de mai sus, 
+sau 'RESTANTIER' daca are restante si 'Fara note' daca studentul nu are inca note.
+
+Construiti o functie PLSQL care sa returneze mesajul 'ERASMUS' daca studentul nu are restante si, 
+sa arunce exceptii definite de voi in cazul in care studentul nu are note sau are cel putin o restanta.
+In cadrul functiei veti arunca exceptiile dar nu le veti prinde!!!
+
+Dintr-un bloc anonim apelati functia pentru fiecare student in parte din baza de date si actualizati coloana
+ERASMUS cu valoarea returnata de functie pentru studentii care nu au restante. 
+Pentru celelalte cazuri prindeti exceptiile aruncate de functie (aceleasi exceptii, 
+nu le declarati din nou in blocul anonim ca sa nu aveti redundanta altfel se acorda 0.5p) si actualizati coloana ERASMUS
+cu mesajele 'Restantier' sau 'Fara note' dupa caz. 
+Daca nu ruleaza programul sau nu apucati sa faceti ce vi se cere se acorda doar 0.25.
+Puteti sa adaugati un student nou in BD care sa nu aiba note.
+
+
+--ALTER TABLE studenti ADD ERASMUS varchar2(1000);
+
+CREATE OR REPLACE FUNCTION is_erasmus(id_stud studenti.id%type) 
+RETURN varchar2 AS
+    nu_are_note exception;
+    PRAGMA EXCEPTION_INIT(nu_are_note, -20001);
+    restantier exception;
+    PRAGMA EXCEPTION_INIT(restantier, -20002);
+    mesaj varchar2(1000);
+    counter integer;
+BEGIN
+    SELECT COUNT(CASE WHEN valoare IS NOT NULL THEN 1 END) INTO counter FROM studenti JOIN note ON studenti.id = note.id_student WHERE studenti.id = id_stud;
+    IF counter = 0 THEN
+        RAISE nu_are_note;
+    END IF;
+    
+    SELECT COUNT(CASE WHEN valoare < 5 THEN 1 END) INTO counter FROM note WHERE id_student = id_stud;
+    IF counter > 0 THEN
+        RAISE restantier;
+    END IF;
+    
+    UPDATE studenti SET erasmus='ERASMUS' WHERE studenti.id=id_stud;
+    mesaj := 'ERASMUS';
+    RETURN mesaj;
+    
+EXCEPTION
+    WHEN nu_are_note THEN
+        UPDATE studenti SET erasmus='FARA NOTE' WHERE id=id_stud;
+        mesaj := 'FARA NOTE';
+        RETURN mesaj;
+    WHEN restantier THEN
+        UPDATE studenti SET erasmus='RESTANTIER' WHERE id=id_stud;
+        mesaj := 'RESTANTIER';
+        RETURN mesaj;
+END is_erasmus;
+/
+
+
+SET SERVEROUTPUT ON;
+DECLARE
+    CURSOR stud IS SELECT id FROM studenti;
+    v_id studenti.id%TYPE;
+BEGIN
+    OPEN stud;
+    LOOP
+        FETCH stud INTO v_id;
+        EXIT WHEN stud%NOTFOUND;
+        DBMS_OUTPUT.put_line(is_erasmus(v_id));
+    END LOOP;
+    CLOSE stud;
+END;
+/ 

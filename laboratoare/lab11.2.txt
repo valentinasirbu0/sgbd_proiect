@@ -1,0 +1,149 @@
+Creati o procedura care primeste ca parametru tipul unui obiect, de exemplu:
+table, view, procedure, function, type, trigger sau package si in functie de tipul dat sa se afiseze
+informatii despre obiectele din baza voastra de date:
+
+- pentru table afisati toate tabelele si pentru fiecare tabel numele coloanelor, tipul de date al coloanelor, 
+ce constrangeri are si pentru ce coloana si ce indecsi are si pentru ce coloane, numarul de randuri per tabela 
+(exista macar un index la nivel de cheie primara)
+
+- ce view-uri, type si triggere exista
+
+- pentru proceduri sau functii afisati toate procedurile si functiile care exista impreuna cu nr de linii de cod
+iar in plus pentru functie daca este determinista 
+(doar o functie declarata deterministic poate fi indexata, exista in tabelul user_procecures coloana deterministic)
+
+- pentru pachete afisati numele lor si ce subprograme are fiecare pachet in parte. 
+Daca nu aveti creati repede un pachet (aveti exemple in laboratorul PLSQL3 cu pachete sa creati repede unul cu tot cu subprograme).
+Daca programul nu ruleaza sau aveti erori sau faceti prea putin se acorda intre 0 si 0.25 pct.
+
+CREATE OR REPLACE PROCEDURE afisare_informatii(p_tip_obj IN VARCHAR2) IS
+BEGIN
+  IF p_tip_obj = 'table' THEN
+    -- Afișarea informațiilor despre tabele
+    FOR tab IN (SELECT table_name FROM user_tables) LOOP
+      DBMS_OUTPUT.PUT_LINE('Nume tabel: ' || tab.table_name);
+      
+      -- Afișarea informațiilor despre coloanele tabelului
+      FOR col IN (SELECT column_name, data_type FROM user_tab_columns WHERE table_name = tab.table_name) LOOP
+        DBMS_OUTPUT.PUT_LINE('  Coloana: ' || col.column_name || ', Tip date: ' || col.data_type);
+      END LOOP;
+      
+      -- Afișarea constrângerilor tabelului
+      FOR cons IN (SELECT constraint_name, constraint_type, search_condition FROM user_constraints WHERE table_name = tab.table_name) LOOP
+        DBMS_OUTPUT.PUT_LINE('  Constrângere: ' || cons.constraint_name || ', Tip: ' || cons.constraint_type);
+        IF cons.constraint_type = 'C' THEN
+          DBMS_OUTPUT.PUT_LINE('    Condiție: ' || cons.search_condition);
+        END IF;
+      END LOOP;
+      
+      -- Afișarea informațiilor despre indecși
+      FOR idx IN (SELECT index_name, column_name FROM user_ind_columns WHERE table_name = tab.table_name) LOOP
+        DBMS_OUTPUT.PUT_LINE('  Index: ' || idx.index_name || ', Coloana: ' || idx.column_name);
+      END LOOP;
+      
+      -- Afișarea numărului de rânduri în tabel
+      FOR cnt IN (SELECT COUNT(*) AS num_rows FROM user_tables WHERE table_name = tab.table_name) LOOP
+        DBMS_OUTPUT.PUT_LINE('  Număr de rânduri: ' || cnt.num_rows);
+      END LOOP;
+      
+      DBMS_OUTPUT.PUT_LINE('--------------------------');
+    END LOOP;
+    
+  ELSIF p_tip_obj = 'view' THEN
+    -- Afișarea informațiilor despre view-uri
+    FOR vw IN (SELECT view_name FROM user_views) LOOP
+      DBMS_OUTPUT.PUT_LINE('Nume view: ' || vw.view_name);
+    END LOOP;
+    
+  ELSIF p_tip_obj = 'type' THEN
+    -- Afișarea informațiilor despre tipuri
+    FOR typ IN (SELECT type_name FROM user_types) LOOP
+      DBMS_OUTPUT.PUT_LINE('Nume tip: ' || typ.type_name);
+    END LOOP;
+    
+  ELSIF p_tip_obj = 'trigger' THEN
+    -- Afișarea informațiilor despre triggere
+    FOR trg IN (SELECT trigger_name FROM user_triggers) LOOP
+      DBMS_OUTPUT.PUT_LINE('Nume trigger: ' || trg.trigger_name);
+    END LOOP;
+    
+  ELSIF p_tip_obj = 'procedure' THEN
+  -- Afișarea informațiilor despre proceduri
+  FOR proc IN (SELECT object_name FROM user_objects WHERE object_type = 'PROCEDURE') LOOP
+    DBMS_OUTPUT.PUT_LINE('Nume procedură: ' || proc.object_name);
+    
+    -- Determinarea numărului de linii pentru procedura curentă
+    DECLARE
+      v_num_lines NUMBER;
+    BEGIN
+      SELECT COUNT(*) INTO v_num_lines
+      FROM user_source
+      WHERE name = proc.object_name
+      AND type = 'PROCEDURE';
+      
+      DBMS_OUTPUT.PUT_LINE('  Nr. linii: ' || v_num_lines);
+    END;
+      
+    DBMS_OUTPUT.PUT_LINE('--------------------------');
+  END LOOP;
+
+ELSIF p_tip_obj = 'function' THEN
+  -- Afișarea informațiilor despre funcții
+  FOR func IN (SELECT object_name, deterministic FROM user_procedures WHERE object_type = 'FUNCTION') LOOP
+    DBMS_OUTPUT.PUT_LINE('Nume funcție: ' || func.object_name);
+    
+    -- Determinarea numărului de linii pentru funcția curentă
+    DECLARE
+      v_num_lines NUMBER;
+    BEGIN
+      SELECT COUNT(*) INTO v_num_lines
+      FROM user_source
+      WHERE name = func.object_name
+      AND type = 'FUNCTION';
+      
+      DBMS_OUTPUT.PUT_LINE('  Nr. linii: ' || v_num_lines);
+      
+      IF func.deterministic = 'YES' THEN
+        DBMS_OUTPUT.PUT_LINE('  Funcție deterministică');
+      END IF;
+    END;
+      
+    DBMS_OUTPUT.PUT_LINE('--------------------------');
+  END LOOP;  
+    
+  ELSIF p_tip_obj = 'package' THEN
+  -- Afișarea informațiilor despre pachete
+  FOR pkg IN (SELECT object_name FROM user_objects WHERE object_type = 'PACKAGE') LOOP
+    DBMS_OUTPUT.PUT_LINE('Nume pachet: ' || pkg.object_name);
+      
+    -- Afișarea informațiilor despre subprogramele pachetului
+    FOR subprg IN (SELECT object_name, procedure_name FROM user_procedures WHERE object_name = pkg.object_name) LOOP
+      -- Determinarea numărului de linii pentru subprogramul curent
+      DECLARE
+        v_num_lines NUMBER;
+      BEGIN
+        SELECT COUNT(*) INTO v_num_lines
+        FROM user_source
+        WHERE name = subprg.object_name
+        AND type = 'PACKAGE'
+        AND line >= (SELECT line FROM user_source WHERE name = subprg.object_name AND type = 'PACKAGE' AND text LIKE subprg.procedure_name || ' IS%')
+        AND line <= (SELECT line FROM user_source WHERE name = subprg.object_name AND type = 'PACKAGE' AND text LIKE subprg.procedure_name || ' END;%');
+          
+        DBMS_OUTPUT.PUT_LINE('  Subprogram: ' || subprg.object_name || '.' || subprg.procedure_name || ', Nr. linii: ' || v_num_lines);
+      END;
+    END LOOP;
+      
+    DBMS_OUTPUT.PUT_LINE('--------------------------');
+  END LOOP;
+    
+  ELSE
+    DBMS_OUTPUT.PUT_LINE('Tipul de obiect nu este valid.');
+  END IF;
+END;
+/
+
+
+set SERVEROUTPUT on;
+BEGIN
+  afisare_informatii('function');
+END;

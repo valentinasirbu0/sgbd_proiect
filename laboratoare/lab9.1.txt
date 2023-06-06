@@ -1,0 +1,63 @@
+Creati o tabela cu informatii despre persoane: id, nume, prenume, email si telefon. Construiti tabelul sub schema Student.
+
+ Creati un fisier care sa contina informatii despre persoane sub forma:
+     Popescu,Ion,popescu@gmail.com,0744123456
+      Dudau,Maria,mariad@info.uaic.ro,0742654321
+      Ionescu, Vasile,ionescuv@yahoo.com,0711223344
+
+deci in fisier avem doar numele, prenumele, adresa de email si telefonul persoanelor. 
+
+Cititi din fisier informatiile de mai sus si introduceti informatiile in tabela pentru persoane.
+
+Dacã o informatia cititã din fisier (dupa nume si prenume) nu existã în tabelul de mai sus, inserati-o si continuati citirea.  
+
+Altfel (dacã existã persoane) aruncati o exceptie proprie ce va informa utilizatorul de faptul ca informatia este deja în tabela si introduceti doar persoanele care nu exista.
+
+DROP TABLE DATELE_MELE;
+
+CREATE TABLE DATELE_MELE (
+  id NUMBER NOT NULL,
+  nume VARCHAR2(50) NOT NULL,
+  prenume VARCHAR2(50) NOT NULL,
+  email VARCHAR2(100) NOT NULL,
+  telefon VARCHAR2(20) NOT NULL,
+  PRIMARY KEY (id)
+);
+
+DELETE FROM DATELE_MELE;
+
+set serveroutput on;
+DECLARE
+  v_fisier UTL_FILE.FILE_TYPE;
+  v_sir VARCHAR2(200);
+  v_id NUMBER := 1; -- start with ID 1
+  dummy NUMBER;
+BEGIN
+  v_fisier := UTL_FILE.FOPEN('MYDIR', 'myfile.txt', 'R');
+  LOOP
+    BEGIN
+      UTL_FILE.GET_LINE(v_fisier, v_sir);
+      BEGIN SELECT 1 INTO dummy FROM DATELE_MELE WHERE  nume = REGEXP_SUBSTR(v_sir, '[^,]+', 1, 1) AND prenume = REGEXP_SUBSTR(v_sir, '[^,]+', 1, 2);
+
+        RAISE_APPLICATION_ERROR(-20001, 'Student already exists: ' || v_sir);
+      EXCEPTION
+        WHEN no_data_found THEN
+          INSERT INTO DATELE_MELE (id, nume, prenume, email, telefon) VALUES (v_id, 
+          REGEXP_SUBSTR(v_sir, '[^,]+', 1, 1), -- extract name
+          REGEXP_SUBSTR(v_sir, '[^,]+', 1, 2), -- extract surname
+          REGEXP_SUBSTR(v_sir, '[^,]+', 1, 3), -- extract email
+          REGEXP_SUBSTR(v_sir, '[^,]+', 1, 4)); -- extract phone number
+          v_id := v_id + 1; -- increment ID
+      END;
+    EXCEPTION
+      WHEN no_data_found THEN
+        UTL_FILE.FCLOSE(v_fisier); -- close file
+        EXIT; -- end loop
+    END;
+  END LOOP;
+  DBMS_OUTPUT.PUT_LINE('Data imported successfully');
+END;
+/
+
+select * from DATELE_MELE;
+

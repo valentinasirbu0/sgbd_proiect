@@ -1,0 +1,42 @@
+Creati un trigger care sa verifice inainte de insert in tabela note daca exista acel student sau acel curs si sa afiseze o eroare (exceptie) corespunzatoare pentru fiecare din cele 3 cazuri, student inexistent, curs inexistent sau si student si curs inexistent.
+
+set serveroutput on;
+CREATE OR REPLACE TRIGGER verif_insert_note
+  before INSERT ON note
+  FOR EACH ROW
+DECLARE
+  v_student_exists NUMBER;
+  v_curs_exists NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO v_student_exists
+  FROM studenti
+  WHERE id = :new.id_student;
+  
+  SELECT COUNT(*) INTO v_curs_exists
+  FROM cursuri
+  WHERE id = :new.id_curs;
+  
+  IF v_student_exists = 0 AND v_curs_exists = 0 THEN
+    raise_application_error(-20001, 'Studentul si cursul nu exista.');
+    
+  ELSIF v_student_exists = 0 THEN
+    raise_application_error(-20002, 'Studentul nu exista.');
+    
+  ELSIF v_curs_exists = 0 THEN
+    raise_application_error(-20003, 'Cursul nu exista.');
+  END IF;
+  
+END;
+/
+
+-- Should succeed
+INSERT INTO note (ID, ID_STUDENT, ID_CURS, VALOARE) VALUES (16409, 1, 1, 8);
+
+-- Should fail with error "Studentul nu exista."
+INSERT INTO note (ID, ID_STUDENT, ID_CURS, VALOARE) VALUES (16409, 1027, 1, 8);
+
+-- Should fail with error "Cursul nu exista."
+INSERT INTO note (ID, ID_STUDENT, ID_CURS, VALOARE) VALUES (16409, 1, 999, 8);
+
+-- Should fail with error "Studentul si cursul nu exista."
+INSERT INTO note (ID, ID_STUDENT, ID_CURS, VALOARE) VALUES (16409, 1027, 999, 8);

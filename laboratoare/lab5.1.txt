@@ -1,0 +1,74 @@
+Creati o colectie de tipul record care sa retina din baza de date urmatoarele informatii despre studenti: 
+nr_matricol, media sa, numarul de restante, numarul de prieteni si bursa.
+Pentru aceasta creati un tip inregistrare. Apoi creati o colectie a carei elemente sa fie de tipul inregistrarii create
+in care sa retineti pentru ficare student in parte informatiile de mai sus. DOAR informatiile de mai sus.
+Veti prelua din baza de date in colectie informatiile cerute si apoi veti afisa informatiile din colectie sub forma:
+Studentul Grozavu Claudia cu id-ul 1019 are:
+Media: 7,9375
+Restante: 2
+Nr amici: 40
+Bursa: 'nu are bursa'
+
+Studentul Scortanu Petru cu id-ul 1020 are:
+Media 7,1875
+Restante 1
+Nr amici 41
+Bursa: 450
+
+ATENTIE!  se va afisa concret daca nu are bursa, in cuvinte!
+
+set serveroutput on;
+DECLARE 
+CURSOR catalog IS
+        SELECT s.nr_matricol, AVG(n.valoare) as medie ,bursa,
+         COUNT(Case WHEN n.valoare < 5 OR n.valoare IS NULL THEN 1 END) as nr_restante,
+         COUNT(CASE WHEN ID_STUDENT1 = s.id THEN 1 END) as nr_prietenii
+        FROM STUDENTI s JOIN NOTE n ON s.id = n.id_student 
+        JOIN prieteni p ON s.id = p.id_student1
+            GROUP BY s.nr_matricol,bursa ORDER BY nr_restante ASC,medie DESC,bursa DESC;
+
+TYPE student_data IS RECORD(
+nr_matricol varchar2(20),
+media number(5),
+bursa number(5),
+nr_restante number(5),
+nr_prietenii number(5)
+);
+
+TYPE MyTab IS TABLE OF student_data INDEX BY PLS_INTEGER;
+linii MyTab;
+
+--v_stud1_id studenti.id%type := 1019;
+--v_stud2_id studenti.id%type := 1020;
+v_stud_nume studenti.nume%type;
+v_stud_prenume studenti.prenume%type;
+v_id studenti.nr_matricol%type;
+
+BEGIN
+
+OPEN catalog;
+FETCH catalog BULK COLLECT INTO linii;
+CLOSE catalog;
+
+
+for i in linii.first..linii.last loop
+if linii.exists(i) then --AND linii(i).nr_matricol = v_stud_matricol then
+SELECT nume,prenume,id into v_stud_nume,v_stud_prenume,v_id from studenti s where  s.nr_matricol = linii(i).nr_matricol;
+DBMS_OUTPUT.PUT_LINE('Studentul ' || v_stud_nume || ' ' || v_stud_prenume || 'cu id-ul ' || v_id || ' are:');
+DBMS_OUTPUT.PUT_LINE('Media: ' || linii(i).media);
+
+IF (linii(i).bursa IS NOT NULL) 
+THEN DBMS_OUTPUT.PUT_LINE('Bursa: ' || linii(i).bursa);
+ELSE DBMS_OUTPUT.PUT_LINE('Bursa: ' || 'nu are bursa');
+END IF;
+
+DBMS_OUTPUT.PUT_LINE('Restante: ' || linii(i).nr_restante);
+DBMS_OUTPUT.PUT_LINE('Nr amici: ' || linii(i).nr_prietenii );
+end if;
+end loop;
+
+
+END;
+          
+
+            

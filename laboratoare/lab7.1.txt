@@ -1,0 +1,82 @@
+Construiti o clasa abstracta legat de olimpiada de informatica care sa aiba macar 
+2 proprietati si o functie care sa faca un anumit calcul gandit de voi si o alta metoda
+care sa afiseze informatiile despre obiect. 
+
+Derivati apoi o clasa noua. 
+Clasa derivata va avea metoda de comparatie MAP peste acelasi criteriu din superclasa
+(aici trebuie sa aveti in vedere un anumit aspect, cititi documentatia aferenta laboratorului). 
+
+Clasa derivata va suprascrie metoda de afisare. 
+Construiti apoi o colectie de obiecte avand tipul derivat 
+si le afisati ordonate conform criteriului de ordonare ales in functia MAP.
+
+DROP TYPE parinte force;
+CREATE OR REPLACE TYPE parinte AS OBJECT (
+  nume VARCHAR2(10),
+  prenume VARCHAR2(10),
+  bursa NUMBER(5),
+  MEMBER FUNCTION is_smart(p parinte) RETURN NUMBER,
+  MEMBER FUNCTION get_bursa RETURN NUMBER,
+  MEMBER PROCEDURE print
+) NOT INSTANTIABLE NOT FINAL;
+/
+
+CREATE OR REPLACE TYPE BODY parinte AS
+  MEMBER FUNCTION get_bursa RETURN NUMBER IS
+  BEGIN
+    RETURN self.bursa;
+  END;
+  
+  MEMBER FUNCTION is_smart(p parinte) RETURN NUMBER IS
+  BEGIN
+    RETURN CASE
+      WHEN p.bursa >= 1000 THEN 1
+      ELSE 0
+    END;
+  END;
+  
+  MEMBER PROCEDURE print IS
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('Parinte: ' || self.nume || ' ' || self.prenume || ', Bursa: ' || self.bursa);
+  END;
+END;
+/
+
+
+DROP TYPE copil force;
+CREATE OR REPLACE TYPE copil UNDER parinte (
+  OVERRIDING MEMBER PROCEDURE print
+);
+/
+
+CREATE OR REPLACE TYPE BODY copil AS  
+  OVERRIDING MEMBER PROCEDURE print AS
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('Copil: ' || self.nume || ' ' || self.prenume || ', Bursa: ' || self.bursa);
+  END;
+END;
+/
+
+DROP TYPE copil_list force;
+CREATE TYPE copil_list AS TABLE OF copil;
+
+
+DECLARE
+  studenti copil_list;
+  sorted_studenti copil_list;
+BEGIN
+  studenti := copil_list(
+    copil('Hostiuc', 'Daria', 1100),
+    copil('Talif', 'Ema Simona', 900),
+    copil('Calinescu', 'Ana Elisa', 1200)
+  );
+  
+   SELECT VALUE(c) BULK COLLECT INTO sorted_studenti
+  FROM TABLE(studenti) c
+  ORDER BY c.get_bursa();
+  
+  FOR i IN 1..sorted_studenti.COUNT LOOP
+    sorted_studenti(i).print();
+  END LOOP;
+END;
+/

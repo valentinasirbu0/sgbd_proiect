@@ -1,0 +1,93 @@
+Intr-un bloc anonim creati colectii(la alegerea voastra :) ) pentru mai multe nume, prenume, an si grupa de studenti  
+apelati o functie care returneaza daca studentul este norocos sau nu(are media peste 5) si inca o functie care returneaza daca este bursier sau nu.
+
+Dati numele si prenumele astfel incat trei studenti sa existe in tabelul studenti si trei sa nu existe.
+Afisati media si daca are bursa pentru fiecare student din colectia voastra.
+Verificati intai daca el exista in baza de date sau daca are note si daca nu, 
+dati mesaj corespunzator pentru fiecare din cele doua situatii.
+ATENTIE: se face verificarea pentru ambele situatii!
+
+CREATE OR REPLACE FUNCTION norocos(v_id studenti.id%type) RETURN BOOLEAN AS
+v_media Number;
+norocos boolean;
+  BEGIN
+  select avg(valoare) into v_media from studenti s join note n
+  on s.id = n.id_student where s.id = v_id;
+  if(v_media > 5) then norocos := true;
+  else norocos := false;
+  end if;
+    RETURN norocos;
+  END;
+  /
+  
+CREATE OR REPLACE FUNCTION bursier(v_id studenti.id%type) RETURN BOOLEAN AS
+v_bursa Number;
+bursier boolean;
+  BEGIN
+  select bursa into v_bursa from studenti where id = v_id;
+  if(v_bursa != NULL) then bursier := true;
+  else bursier := false;
+  end if;
+    RETURN bursier;
+  END;
+  /
+  
+CREATE OR REPLACE FUNCTION std_exista(v_an studenti.an%type, v_grupa studenti.grupa%type, v_nume studenti.nume%type, v_prenume studenti.prenume%type) RETURN BOOLEAN AS
+--n_nume studenti.nume%type;
+--n_prenume studenti.prenume%type;
+n_an studenti.an%type;
+n_grupa studenti.grupa%type;
+exista boolean;
+  BEGIN
+  select an,grupa into n_an,n_grupa from studenti 
+  where prenume = v_prenume and nume = v_nume;
+  if(n_an = v_an and v_grupa = n_grupa) then exista := true;
+  else exista := false;
+  end if;
+    RETURN exista;
+  END;
+  /
+  
+CREATE OR REPLACE FUNCTION are_note(v_id student.id%type) return boolean as
+are_note boolean;
+suma number;
+begin
+select sum(note) as suma from studenti s join note n on s.id=n.id_student and s.id=v_id;
+if (suma != 0) then are_note := true;
+else are_note := false;
+end if;
+return are_note;
+end;
+/
+
+
+set serveroutput on;
+DECLARE 
+
+TYPE nume IS TABLE OF varchar2(20);
+  v_nume nume := nume('Gigel', 'Ionel', 'Maria', 'Marius', 'Vlad', 'Iosif'); 
+TYPE prenume IS TABLE OF varchar2(20);
+  v_prenume prenume := prenume('Mihai', 'George', 'Alexandra', 'Tuduri', 'Apetrei', 'Spiridon');
+TYPE grupa IS TABLE OF varchar2(20);
+  v_grupa grupa := grupa('A1', 'A2', 'A3', 'B5', 'B2', 'B1');
+TYPE an IS TABLE OF number(5);
+  v_an an := an(1, 2, 3, 3, 2, 3);
+  
+  answer boolean;
+  
+BEGIN
+answer := norocos(44);
+if(answer = true) then  DBMS_OUTPUT.PUT_LINE('norocos');
+end if;
+--answer := bursier(55);
+/*
+for i in 1..5 loop
+    if std_exista(v_an(i), v_grupa(i), v_nume(i), v_prenume(i) = true ) then 
+      DBMS_OUTPUT.PUT_LINE('Nume: ' || v_nume(i) || ', Prenume: ' || v_prenume(i) || ', Grupa: ' || v_grupa(i) || ', An: ' || v_an(i) || ' exista: ');
+    else
+      DBMS_OUTPUT.PUT_LINE('Nume: ' || v_nume(i) || ', Prenume: ' || v_prenume(i) || ', Grupa: ' || v_grupa(i) || ', An: ' || v_an(i) || ' exista: ');
+    end if;
+  end loop;
+*/
+  
+END;

@@ -1,0 +1,78 @@
+Construiti o procedura ce va genera catalogul pentru orice materie unde parametrul de intrare 
+va fi numele materiei respective. 
+Catalogul va avea campurile nota, data_notarii, numele, prenumele, promovabilitatea si numarul matricol al studentului
+ce a luat nota respectiva si va fi populat din tabelele existente.
+Daca studentul are sub nota 4, se va afisa pe coloana promovabilitate : RESTANTIER. In alt caz, se va afisa PROMOVAT.
+ATENTIE!!! Daca sunt erori la rularea programului punctajul va fi de doar 0.25! Folositi doar pachetul DBMS_SQL si cod PLSQL.
+
+set SERVEROUTPUT on;
+CREATE OR REPLACE PROCEDURE generare_catalog(p_nume_materie IN VARCHAR2) IS
+  v_cursor_id   NUMBER;
+  v_column_count NUMBER;
+  v_column_desc  DBMS_SQL.DESC_TAB;
+  v_table_name   VARCHAR2(30) := 'studenti';
+  v_sql_stmt     VARCHAR2(4000);
+  v_rc           NUMBER;
+  v_nota         NUMBER;
+  v_data_notarii DATE;
+  v_nume         VARCHAR2(30);
+  v_prenume      VARCHAR2(30);
+  v_promovabilitate VARCHAR2(30);
+  v_nr_matricol  NUMBER;
+  v_id_curs NUMBER;
+BEGIN
+  SELECT id INTO v_id_curs FROM cursuri WHERE titlu_curs = p_nume_materie;
+   v_sql_stmt :=
+    'SELECT n.valoare, n.data_notare, s.nume, s.prenume, s.nr_matricol ' ||
+    'FROM note n JOIN studenti s ON n.id_student = s.id ' ||
+    'WHERE n.id_curs = :materie ORDER BY n.valoare DESC';
+    
+  DBMS_SQL.BIND_VARIABLE(v_cursor_id, ':materie', v_id_curs);
+  DBMS_SQL.PARSE(v_cursor_id, v_sql_stmt, DBMS_SQL.NATIVE);
+  
+  v_cursor_id := DBMS_SQL.OPEN_CURSOR;
+  DBMS_SQL.PARSE(v_cursor_id, v_sql_stmt, DBMS_SQL.NATIVE);
+  
+  v_rc := DBMS_SQL.EXECUTE(v_cursor_id);
+  DBMS_SQL.DESCRIBE_COLUMNS(v_cursor_id, v_column_count, v_column_desc);
+
+  DBMS_OUTPUT.PUT_LINE(
+    RPAD('Nota', 5) || RPAD('Data notarii', 15) || RPAD('Nume', 15) ||
+    RPAD('Prenume', 15) || RPAD('Promovabilitate', 20) || RPAD('Nr. matricol', 15));
+  DBMS_OUTPUT.PUT_LINE('===============================================================');
+
+  LOOP
+    v_rc := DBMS_SQL.FETCH_ROWS(v_cursor_id);
+    EXIT WHEN v_rc = 0;
+
+    DBMS_SQL.COLUMN_VALUE(v_cursor_id, 1, v_nota);
+    DBMS_SQL.COLUMN_VALUE(v_cursor_id, 2, v_data_notarii);
+    DBMS_SQL.COLUMN_VALUE(v_cursor_id, 3, v_nume);
+    DBMS_SQL.COLUMN_VALUE(v_cursor_id, 4, v_prenume);
+    DBMS_SQL.COLUMN_VALUE(v_cursor_id, 5, v_nr_matricol);
+
+    IF v_nota < 4 THEN
+      v_promovabilitate := 'RESTANTIER';
+    ELSE
+      v_promovabilitate := 'PROMOVAT';
+    END IF;
+
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD(v_nota, 5) || RPAD(v_data_notarii, 15) || RPAD(v_nume, 15) ||
+      RPAD(v_prenume, 15) || RPAD(v_promovabilitate, 20) || RPAD(v_nr_matricol, 15));
+  END LOOP;
+
+  DBMS_SQL.CLOSE_CURSOR(v_cursor_id);
+EXCEPTION
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('Eroare: ' || SQLERRM);
+  
+END;
+/
+
+
+BEGIN
+  generare_catalog('Baze de date');
+END;
+
+select * from BAZE_DE_DATE;

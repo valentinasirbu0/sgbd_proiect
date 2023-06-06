@@ -1,0 +1,132 @@
+Sa se defineasca o clasa cu informatii despre studenti precum nume, prenume, media si daca sunt restantieri sau nu. 
+
+Construiti la alegere o metoda de comparare a obiectelor-studenti pentru a afla cine are media cea mai mare.
+
+Faceti si o metoda de afisare a informatiilor despre studenti.(in special sa verificati da sunt restantieri sau nu o data cu afisarea) 
+
+Construiti o subclasa bursieri pentru clasa de mai sus care contine proprietatea bursa si suprascrieti metoda de afisare sa se afiseze si bursa. 
+
+Intr-un bloc anonim creati o colectie de obiecte de tip bursieri care vor prelua date din tabela studenti
+
+doar pentru studentii care au bursa si nu sunt restantieri. Se vor prelua numele, prenumele, media, bursa si afisati obiectele ordonate conform mediei.
+
+DROP TYPE student FORCE;
+CREATE OR REPLACE TYPE student AS OBJECT (
+  nume VARCHAR2(15),
+  prenume VARCHAR2(30),
+  media NUMBER(5),
+  restantier NUMBER(1),
+  CONSTRUCTOR FUNCTION student(nume VARCHAR2, prenume VARCHAR2, media NUMBER, restantier NUMBER) RETURN SELF AS RESULT,
+  ORDER MEMBER FUNCTION dupa_medie(p student) RETURN NUMBER,
+  MEMBER PROCEDURE print
+) NOT FINAL;
+/
+
+CREATE OR REPLACE TYPE BODY student AS
+  CONSTRUCTOR FUNCTION student(nume VARCHAR2, prenume VARCHAR2, media NUMBER, restantier NUMBER) RETURN SELF AS RESULT IS
+  BEGIN
+    SELF.nume := nume;
+    SELF.prenume := prenume;
+    SELF.media := media;
+    SELF.restantier := restantier;
+    RETURN;
+  END;
+
+  MEMBER PROCEDURE print IS
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('Nume: ' || nume || ', Prenume: ' || prenume || ', Medie: ' || media || ', Restantier: ' || restantier);
+  END;
+  
+  MEMBER FUNCTION dupa_medie(p student) RETURN NUMBER IS
+  BEGIN
+    IF media > p.media THEN
+      RETURN 1;
+    ELSIF media < p.media THEN
+      RETURN -1;
+    ELSE
+      RETURN 0;
+    END IF;
+  END;
+END;
+/
+
+
+DROP TYPE bursieri FORCE;
+CREATE OR REPLACE TYPE bursieri UNDER student (
+  bursa NUMBER,
+  CONSTRUCTOR FUNCTION bursieri(nume VARCHAR2, prenume VARCHAR2, media NUMBER, restantier NUMBER, bursa NUMBER) RETURN SELF AS RESULT,
+  OVERRIDING MEMBER PROCEDURE print,
+  MEMBER FUNCTION dupa_bursa(p bursieri) RETURN NUMBER
+) NOT FINAL;
+/
+
+CREATE OR REPLACE TYPE BODY bursieri AS
+  CONSTRUCTOR FUNCTION bursieri(nume VARCHAR2, prenume VARCHAR2, media NUMBER, restantier NUMBER, bursa NUMBER) RETURN SELF AS RESULT IS
+    BEGIN
+      SELF.nume := nume;
+      SELF.prenume := prenume;
+      SELF.media := media;
+      SELF.restantier := restantier;
+      SELF.bursa := bursa;
+      RETURN;
+    END;
+    
+  OVERRIDING MEMBER PROCEDURE print IS
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('Nume: ' || nume || ', Prenume: ' || prenume || ', Medie: ' || media || ', Restantier: ' || restantier || ', Bursa: ' || bursa);
+  END;
+
+  MEMBER FUNCTION dupa_bursa(p bursieri) RETURN NUMBER IS
+  BEGIN
+    IF bursa > p.bursa THEN
+      RETURN 1;
+    ELSIF bursa < p.bursa THEN
+      RETURN -1;
+    ELSE
+      RETURN 0;
+    END IF;
+  END;
+END;
+/
+
+
+DROP TYPE stud_list force;
+CREATE TYPE stud_list AS TABLE OF bursieri;
+
+
+DECLARE
+  TYPE stud_list IS TABLE OF bursieri;
+  persoana stud_list := stud_list();
+BEGIN
+  SELECT bursieri(nume, prenume, AVG(valoare), CASE WHEN MIN(valoare) < 5 THEN 1 ELSE 0 END, bursa)
+  BULK COLLECT INTO persoana
+  FROM studenti s
+  JOIN note n ON s.id = n.id_student
+  GROUP BY nume, prenume, bursa
+  HAVING bursa > 0
+  ORDER BY bursa DESC;
+  
+  
+  
+   FOR i IN 1..persoana.COUNT LOOP
+    IF persoana(i).bursa IS NOT NULL AND persoana(i).restantier = 0 THEN
+      persoana(i).print;
+    END IF;
+  END LOOP;
+  
+  DECLARE
+    max_bursa bursieri;
+  BEGIN
+    FOR i IN 1..persoana.COUNT LOOP
+      IF max_bursa IS NULL OR persoana(i).dupa_bursa(max_bursa) = 1 THEN
+        max_bursa := persoana(i);
+      END IF;
+    END LOOP;
+
+    IF max_bursa IS NOT NULL THEN
+      DBMS_OUTPUT.PUT_LINE('Person with the biggest bursa:');
+      max_bursa.print;
+    END IF;
+  END;
+END;
+/

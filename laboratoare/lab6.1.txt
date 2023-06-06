@@ -1,0 +1,128 @@
+In tabela studenti inserati trei studenti astfel:
+1 student sa aiba macar o nota dar sa nu aiba prieteni
+1 student sa aiba macar un prieten dar sa nu aiba note
+1 student sa nu aiba nici note nici prieteni
+Insearea se face in mod normal doar cu comenzi Insert.
+
+Realizati in PLSQL functii care primesc ca parametru
+un id de student si care sa returneze numele si prenumele, nr de prieteni si media studentului. 
+Functiile vor arunca exceptii pentru trei situatii: 
+- nu exista student in BD
+- nu are prieteni 
+- nu are note, deci nu are medie
+FUNCTIILE DOAR vor arunca exceptiile dar NU LE VOR CAPTA (trata) adica nu aveti sectiunea EXCEPTION in functii.
+
+Intr-un bloc anonim declarati o colectie de 5 id-uri de studenti astfel: 
+includeti id-urile celor 3 noi studenti abia adaugati si 1 id al unui student care exista in bd si are si note si prieteni
+si un id care nu exista in BD.
+Afisati numele si prenumele, nr de prieteni si media pentru fiecare din cele 6 id-uri sau mesaj de eroare in functie 
+de caz.
+In acest bloc anonim CAPTATI exceptiile aruncate in functii, aceleasi exceptii nu le declarati din nou in blocul anonim ca sa nu avem redundanta altfel se acorda 0.5p si afisati mesaje corespunzatoare daca studentul cu acel id nu exista in BD, daca studentul nu are prieteni si/sau daca nu are note 
+(un student poate in acelasi timp sa nu aiba nici nota nici prieteni si trebuie afisate ambele mesaje pentru acel student).
+
+Daca nu ruleaza programul sau nu apucati sa faceti ce vi se cere se pot acorda doar 0.25.
+
+
+CREATE OR REPLACE PROCEDURE insereaza_studenti AS
+BEGIN
+  INSERT INTO STUDENTI (ID, NR_MATRICOL, NUME, PRENUME, AN, GRUPA, DATA_NASTERE)
+  VALUES (1026, 'AA01', 'Sirbu', 'Valentina', 2, 'A1', TO_DATE('24-OCT-1974', 'DD-MON-YYYY')); --NICI NOTE NICI PRIETENI
+  INSERT INTO STUDENTI (ID, NR_MATRICOL, NUME, PRENUME, AN, GRUPA, DATA_NASTERE)
+  VALUES (1027, 'AA02', 'Caldare', 'Elena', 2, 'A6', TO_DATE('25-SEP-1974', 'DD-MON-YYYY')); --UN PRIETEN FARA NOTE
+  INSERT INTO STUDENTI (ID, NR_MATRICOL, NUME, PRENUME, AN, GRUPA, DATA_NASTERE)
+  VALUES (1028, 'AA03', 'Bazic', 'Catalina', 2, 'B2', TO_DATE('03-NOV-1974', 'DD-MON-YYYY')); --O NOTA DAR NU PRIETENI
+  INSERT INTO NOTE (ID, ID_STUDENT, ID_CURS, VALOARE)
+  VALUES (16433, 1028, 1, 8); --adaugam nota 8 pentru studentul Bazic la cursul 1
+  INSERT INTO PRIETENI (ID, ID_STUDENT1, ID_STUDENT2)
+  VALUES (20001, 1027, 1025); --adaugam relatia de prietenie 
+END insereaza_studenti;
+/
+
+CREATE OR REPLACE FUNCTION numee (v_id studenti.id%type)
+RETURN varchar2 AS
+    v_nume varchar2(15);
+    inexistent exception;
+    PRAGMA EXCEPTION_INIT(inexistent, -20001);
+BEGIN
+    SELECT nume INTO v_nume FROM studenti WHERE id = v_id;
+    RETURN v_nume;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        raise inexistent;
+END;
+/
+
+
+CREATE OR REPLACE FUNCTION prenumee (v_id studenti.id%type)
+RETURN varchar2 AS
+    v_prenume varchar2(30);
+    inexistent exception;
+    PRAGMA EXCEPTION_INIT(inexistent, -20001);
+BEGIN
+    SELECT prenume INTO v_prenume FROM studenti WHERE id = v_id;
+    RETURN v_prenume;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        raise inexistent;
+END;
+/
+
+
+CREATE OR REPLACE FUNCTION mediee (v_id studenti.id%type)
+RETURN number AS
+    medie number;
+    nogrades exception;
+    PRAGMA EXCEPTION_INIT(nogrades, -20003);
+BEGIN
+    SELECT AVG(valoare) INTO medie FROM studenti s JOIN note n ON s.id = n.id_student WHERE s.id = v_id;
+    RETURN medie;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        raise nogrades;
+END;
+/
+
+
+CREATE OR REPLACE FUNCTION nr_prietenie (v_id studenti.id%type)
+RETURN number AS
+    nr_prieteni number;
+    nofriends exception;
+    PRAGMA EXCEPTION_INIT(nofriends, -20002);
+BEGIN
+    SELECT COUNT(id) INTO nr_prieteni FROM prieteni WHERE id_student1 = v_id;
+    RETURN nr_prieteni;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        raise nofriends;
+END;
+/
+
+
+
+set serveroutput on;
+DECLARE
+  inexistent exception;PRAGMA EXCEPTION_INIT(inexistent, -20001);
+  nofriends exception;PRAGMA EXCEPTION_INIT(nofriends, -20002);
+  nogrades exception;PRAGMA EXCEPTION_INIT(nogrades, -20003);
+  
+  Type mytab is VARRAY(5) of studenti.id%type;
+  linii mytab;
+  
+BEGIN
+    linii := mytab(1026,1027,1028,1025,1029);
+    
+    for i in linii.first..linii.last loop
+        BEGIN
+            DBMS_OUTPUT.PUT_LINE(numee(linii(i)));
+            DBMS_OUTPUT.PUT_LINE(prenumee(linii(i)));
+            DBMS_OUTPUT.PUT_LINE(nr_prietenie(linii(i)));
+            DBMS_OUTPUT.PUT_LINE(mediee(linii(i)));
+        EXCEPTION
+            WHEN inexistent THEN dbms_output.put_line('Nu exista');
+            WHEN nofriends THEN dbms_output.put_line('Nu are prieteni');
+            WHEN nogrades THEN dbms_output.put_line('Nu are note');
+        END;
+        
+    end loop;
+END;
+/
